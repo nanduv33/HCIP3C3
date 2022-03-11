@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>Draw</title>
+  <link href="vendors/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+  <link href="style.css" rel="stylesheet" type="text/css" />
+  <script src="vendors/jquery/jquery-3.3.1.min.js"></script>
+  <script type="text/javascript" src="vendors/paper/paper-full.min.js"></script>
+  
+</head>
+<body>
+  
+  <!-- Please remove web socket demo before submission -->
+  
+  <h4>Web socket demo</h4>
+  Your Message: <input id="input"></input>
+  <div id="status"></div>
+  <br></br>
+
+  <!-- Please remove drawing demo title before submission -->
+  <!-- You may make the drawing larger -->
+  
+  <h4>Drawing demo</h4>
+  <canvas id="myCanvas" width="350px" height="350px"></canvas>
+  
+  
+  <script>
+    window.onload = function() {
+      // click and drag to draw
+
+      function uuidv4() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      }
+      function generateColor() {
+          return {
+            hue: Math.random() * 360,
+            saturation: 0.7,
+            brightness: 0.7,
+            alpha: 0.5
+          };
+        }
+      
+      function basicDrawingTool(){
+        var tool = new paper.Tool();
+    		var path;
+    
+    
+    		// Define a mousedown and mousedrag handler
+    		tool.onMouseDown = function(event) {
+    			path = new paper.Path();
+    			path.strokeColor = 'black';
+    			path.add(event.point);
+          console.log(event.point.x);
+          // socket.send(event.point);
+    		}
+    
+    		tool.onMouseDrag = function(event) {
+    			path.add(event.point);
+    		}      
+      }
+
+      function basicDrawing(){
+        // Establish websocket connection & declare paper js
+        var socket = new WebSocket("wss://ws-server-template.nandakishore-r.repl.co", "very-good-protocol");
+        var tool = new paper.Tool();
+    		var path;
+        var sessionId = '';
+        var paths = {};
+        var color = generateColor();
+        var size =  screen.width <= 768 ? "small" : "large";
+        console.log("size: ", size);
+        
+        
+        socket.onopen = function(){
+          sessionId = uuidv4();
+          console.log(sessionId);
+          $("#status").append("[open] websocket connection opened")
+          $("#status").append($("<br>"));
+          
+        }
+
+        socket.onclose = function(){
+          $("#status").append("[close] websocket connection closed");
+          $("#status").append($("<br>"));
+        }
+
+        socket.onmessage = function(message){
+
+    
+          var msg = JSON.parse(message.data);
+          console.log(msg.size);
+
+        if(sessionId != msg.sessionId){
+          if (size == "large" && msg.size == "small") {
+            point = {};
+            point['x'] = msg.coordinate[1];
+            point['y'] = msg.coordinate[2];
+            // console.log('msg ', msg.coordinate);
+            if(msg.type == "start"){
+              startPath(point, msg.color, msg.sessionId);
+            } else if(msg.type == "continue") {
+              continuePath(point, msg.color, msg.sessionId);
+            } else if(msg.type == "end") {
+               endPath(point, msg.color, msg.sessionId);
+            }
+          }
+        }
+
+       
+        }
+
+
+        // Event listener 
+        // Define a mousedown and mousedrag handler
+    		tool.onMouseDown = function(event) {
+    			startPath(event.point,color,sessionId);
+          data = {};
+          data['type'] = 'start';
+          data['coordinate'] = event.point;
+          data['sessionId'] = sessionId; 
+          data['color'] = color;
+          data['size'] = size
+          socket.send(JSON.stringify(data));
+    		}
+    
+    		tool.onMouseDrag = function(event) {
+    			continuePath(event.point,color, sessionId);
+          data = {};
+          data['type'] = 'continue';
+          data['coordinate'] = event.point;
+          data['sessionId'] = sessionId;
+          data['color'] = color;
+          data['size'] = size;
+          socket.send(JSON.stringify(data));
+    		}   
+
+       tool.onMouseUp = function(event) {
+         // endPath(event.point, color, sessionId);
+         // data['type'] = 'end';
+         // data['coordinate'] = event.point;
+         // data['sessionId'] = sessionId;
+         // data['color'] = color;
+         // data['size'] = size;
+         // socket.send(JSON.stringify(data));
+       }
+
+      function startPath( point, pathColor, sessionId ) {
+        paths[sessionId] = new paper.Path();
+        paths[sessionId].strokeColor = pathColor;
+        paths[sessionId].add(point);
+      }
+
+      function continuePath(point, pathColor, sessionId) {
+        var path = paths[sessionId];
+        paths[sessionId].strokeColor = pathColor;
+        path.add(point);
+      }
+
+      function endPath(point, pathColor, sessionId) {
+        var path = paths[sessionId];
+        paths[sessionId].strokeColor = pathColor;
+        path.add(point);
+        path.closed = true;
+        path.smooth();
+        
+        delete paths[sessionId]
+      }
+
+          
+      }
+
+  
+
+      // type in chat and press enter for demo
+      function basicWebsocketChat(){
+          // The p4 starter code below is based on @MrEconomical (https://replit.com/@MrEconomical)'s ws-server-template example
+        
+        // Establish websocket connection
+        var socket = new WebSocket("wss://ws-server-template.nandakishore-r.repl.co", "very-good-protocol");
+        
+        socket.onopen = function(){
+          $("#status").append("[open] websocket connection opened")
+          $("#status").append($("<br>"));
+        }
+        
+        socket.onmessage = function(message){
+          // Receive a message from websocket server
+          $("#status").append(`[receive] ${message.data}`);
+          $("#status").append($("<br>"));
+        }
+        
+        socket.onclose = function(){
+          $("#status").append("[close] websocket connection closed");
+          $("#status").append($("<br>"));
+        }
+        
+        // Event listeners
+        $('#input').on("keypress", function(event){
+          if (event.key === "Enter") {
+        
+              // Send a message from this browser window
+              socket.send($('#input').val());
+              $("#status").append(`[send] ${$('#input').val()}`);
+              $("#status").append($("<br>"));
+              $('#input').val("");            
+          }
+        });
+
+        $("#myCanvas").on();
+      }
+
+      function init(){
+        // setup paper.js
+        paper.setup('myCanvas');
+        // basicDrawingTool();
+        // basicWebsocketChat(); 
+        basicDrawing();
+      }
+
+      init();  
+    }
+
+</script>
+</body>
+</html>
